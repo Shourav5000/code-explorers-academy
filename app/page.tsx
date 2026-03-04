@@ -243,7 +243,7 @@ function LogoMark({ className = "" }: { className?: string }) {
       <img
         src="/images/logo.png"
         alt="Code Explorers Academy logo"
-        className="h-16 sm:h-20 md:h-24 w-auto object-contain drop-shadow-[0_10px_30px_rgba(0,0,0,0.55)]"
+        className="h-16 sm:h-20 md:h-26 w-auto object-contain drop-shadow-[0_10px_30px_rgba(0,0,0,0.55)]"
       />
       <div className="flex flex-col justify-center leading-[1.0]">
         <div className="text-[16px] sm:text-[18px] md:text-[22px] font-extrabold tracking-tight bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent drop-shadow-sm">
@@ -441,6 +441,212 @@ function DifficultyMeter({ n }: { n: number }) {
   );
 }
 
+// ========= NEW: motion helpers + PricingCard =========
+function usePrefersReducedMotion() {
+  const [reduced, setReduced] = React.useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const onChange = () => setReduced(mq.matches);
+    onChange();
+    mq.addEventListener?.("change", onChange);
+    return () => mq.removeEventListener?.("change", onChange);
+  }, []);
+
+  return reduced;
+}
+
+function clamp(n: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, n));
+}
+
+function PricingCard({
+  plan,
+  highlighted,
+  onCta,
+}: {
+  plan: {
+    name: string;
+    price: string;
+    cadence: string;
+    desc: string;
+    features: string[];
+    cta: string;
+  };
+  highlighted?: boolean;
+  onCta: () => void;
+}) {
+  const reduced = usePrefersReducedMotion();
+  const ref = React.useRef<HTMLDivElement | null>(null);
+
+  const [tilt, setTilt] = React.useState({ rx: 0, ry: 0 });
+  const [hovered, setHovered] = React.useState(false);
+
+  const onMove = (e: React.MouseEvent) => {
+    if (reduced) return;
+    const el = ref.current;
+    if (!el) return;
+
+    const r = el.getBoundingClientRect();
+    const px = (e.clientX - r.left) / r.width; // 0..1
+    const py = (e.clientY - r.top) / r.height; // 0..1
+
+    const ry = clamp((px - 0.5) * 10, -8, 8);
+    const rx = clamp(-(py - 0.5) * 10, -8, 8);
+
+    setTilt({ rx, ry });
+  };
+
+  const onLeave = () => {
+    setHovered(false);
+    setTilt({ rx: 0, ry: 0 });
+  };
+
+  return (
+    <motion.div
+      ref={ref}
+      onMouseEnter={() => setHovered(true)}
+      onMouseMove={onMove}
+      onMouseLeave={onLeave}
+      initial={false}
+      animate={
+        reduced
+          ? {}
+          : {
+              rotateX: tilt.rx,
+              rotateY: tilt.ry,
+              y: hovered ? -6 : 0,
+            }
+      }
+      transition={{ type: "spring", stiffness: 220, damping: 18, mass: 0.6 }}
+      style={{ transformStyle: "preserve-3d" }}
+      className={classNames(
+        "relative rounded-[2rem] p-6 ring-1 overflow-hidden",
+        highlighted
+          ? "bg-white/10 ring-white/25 shadow-[0_20px_80px_rgba(0,0,0,0.35)]"
+          : "bg-white/5 ring-white/10"
+      )}
+    >
+      {/* Animated glow */}
+      <motion.div
+        aria-hidden="true"
+        className="pointer-events-none absolute -inset-24 opacity-0"
+        animate={{ opacity: hovered ? 1 : 0 }}
+        transition={{ duration: 0.25 }}
+        style={{
+          background: highlighted
+            ? "radial-gradient(circle at 30% 20%, rgba(255,255,255,0.18), transparent 55%), radial-gradient(circle at 70% 60%, rgba(168,85,247,0.22), transparent 55%)"
+            : "radial-gradient(circle at 30% 20%, rgba(255,255,255,0.12), transparent 55%), radial-gradient(circle at 70% 60%, rgba(34,211,238,0.18), transparent 55%)",
+        }}
+      />
+
+      {/* Sheen */}
+      <motion.div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 opacity-0"
+        animate={{ opacity: hovered ? 1 : 0 }}
+        transition={{ duration: 0.25 }}
+        style={{
+          background:
+            "linear-gradient(120deg, transparent 0%, rgba(255,255,255,0.10) 25%, transparent 55%)",
+        }}
+      />
+
+      <div style={{ transform: "translateZ(20px)" }} className="relative">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <div className="text-white font-semibold text-lg">{plan.name}</div>
+            <div className="mt-2 text-sm text-white/70">{plan.desc}</div>
+          </div>
+
+          {highlighted ? (
+            <motion.span
+              className="rounded-full bg-white/15 px-3 py-1 text-xs text-white/80 ring-1 ring-white/20"
+              animate={
+                reduced
+                  ? {}
+                  : {
+                      boxShadow: hovered
+                        ? "0 0 0 rgba(255,255,255,0)"
+                        : "0 0 18px rgba(255,255,255,0.10)",
+                    }
+              }
+              transition={{ duration: 0.4 }}
+            >
+              <motion.span
+                animate={reduced ? {} : { opacity: [0.85, 1, 0.85] }}
+                transition={{ duration: 2.2, repeat: Infinity }}
+              >
+                Most popular
+              </motion.span>
+            </motion.span>
+          ) : null}
+        </div>
+
+        <div className="mt-6 flex items-end gap-2">
+          <div className="text-4xl font-semibold tracking-tight">{plan.price}</div>
+          <div className="text-white/60 pb-1">{plan.cadence}</div>
+        </div>
+
+        <motion.div
+          className="mt-5 grid gap-2"
+          initial={false}
+          animate={hovered && !reduced ? "show" : "rest"}
+          variants={{ rest: { opacity: 1 }, show: { opacity: 1 } }}
+        >
+          {plan.features.map((f, i) => (
+            <motion.div
+              key={f}
+              className="flex items-center gap-2 text-sm text-white/75"
+              initial={false}
+              animate={
+                hovered && !reduced
+                  ? { y: 0, opacity: 1 }
+                  : { y: 0, opacity: 1 }
+              }
+              transition={{
+                delay: hovered && !reduced ? i * 0.05 : 0,
+                duration: 0.2,
+              }}
+            >
+              <Check className="h-4 w-4" />
+              {f}
+            </motion.div>
+          ))}
+        </motion.div>
+
+        <div className="mt-6">
+          <motion.div whileTap={{ scale: 0.98 }} transition={{ duration: 0.12 }}>
+            <Button
+              variant={highlighted ? "primary" : "ghost"}
+              className="w-full"
+              onClick={onCta}
+            >
+              {plan.cta}
+            </Button>
+          </motion.div>
+
+          <div className="mt-3 text-xs text-white/50">
+            Cancel anytime • Switch plans anytime
+          </div>
+        </div>
+      </div>
+
+      {highlighted ? (
+        <motion.div
+          aria-hidden="true"
+          className="pointer-events-none absolute right-6 top-6 text-white/40"
+          animate={reduced ? {} : { y: [0, -6, 0], opacity: [0.35, 0.7, 0.35] }}
+          transition={{ duration: 3.2, repeat: Infinity }}
+        >
+          <Sparkles className="h-5 w-5" />
+        </motion.div>
+      ) : null}
+    </motion.div>
+  );
+}
+// ========= END NEW =========
+
 export default function Page() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [loginOpen, setLoginOpen] = useState(false);
@@ -589,11 +795,7 @@ export default function Page() {
               onClick={() => setMobileOpen((v) => !v)}
               aria-label="Open menu"
             >
-              {mobileOpen ? (
-                <X className="h-6 w-6" />
-              ) : (
-                <Menu className="h-6 w-6" />
-              )}
+              {mobileOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
             </button>
           </div>
 
@@ -658,8 +860,7 @@ export default function Page() {
               </h1>
 
               <p className="mt-4 text-white/70 leading-relaxed max-w-xl">
-                {active.sub}{" "}
-                <span className="text-white/80">{BRAND.tagline}</span>
+                {active.sub} <span className="text-white/80">{BRAND.tagline}</span>
               </p>
 
               <div className="mt-5 flex flex-wrap gap-2">
@@ -677,9 +878,7 @@ export default function Page() {
                   size="lg"
                   variant="ghost"
                   onClick={() =>
-                    document
-                      .querySelector("#courses")
-                      ?.scrollIntoView({ behavior: "smooth" })
+                    document.querySelector("#courses")?.scrollIntoView({ behavior: "smooth" })
                   }
                 >
                   <GraduationCap className="h-5 w-5" />
@@ -693,27 +892,21 @@ export default function Page() {
                     <Clock className="h-4 w-4" />
                     <span className="text-sm font-semibold">Flexible times</span>
                   </div>
-                  <div className="mt-2 text-xs text-white/60">
-                    Weekdays + weekends
-                  </div>
+                  <div className="mt-2 text-xs text-white/60">Weekdays + weekends</div>
                 </div>
                 <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-4">
                   <div className="flex items-center gap-2 text-white/80">
                     <Laptop className="h-4 w-4" />
                     <span className="text-sm font-semibold">Project-based</span>
                   </div>
-                  <div className="mt-2 text-xs text-white/60">
-                    Games, apps, robotics
-                  </div>
+                  <div className="mt-2 text-xs text-white/60">Games, apps, robotics</div>
                 </div>
                 <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-4">
                   <div className="flex items-center gap-2 text-white/80">
                     <Globe className="h-4 w-4" />
                     <span className="text-sm font-semibold">Online</span>
                   </div>
-                  <div className="mt-2 text-xs text-white/60">
-                    Learn from anywhere
-                  </div>
+                  <div className="mt-2 text-xs text-white/60">Learn from anywhere</div>
                 </div>
               </div>
 
@@ -778,12 +971,10 @@ export default function Page() {
                     </div>
                     <div className="absolute bottom-4 left-4 right-4">
                       <div className="rounded-3xl bg-slate-950/55 ring-1 ring-white/10 backdrop-blur px-4 py-3">
-                        <div className="text-white font-semibold">
-                          What kids build
-                        </div>
+                        <div className="text-white font-semibold">What kids build</div>
                         <div className="mt-1 text-sm text-white/70">
-                          Games, apps, interactive art, and robotics projects
-                          they’re proud to show off.
+                          Games, apps, interactive art, and robotics projects they’re proud to show
+                          off.
                         </div>
                       </div>
                     </div>
@@ -816,7 +1007,6 @@ export default function Page() {
                 onClick={() => openCourse(c)}
                 className="group text-left rounded-[2rem] overflow-hidden bg-white/5 ring-1 ring-white/10 hover:ring-white/20 hover:bg-white/7 transition relative"
               >
-                {/* Image */}
                 <div className="relative">
                   <img
                     src={c.image}
@@ -824,7 +1014,6 @@ export default function Page() {
                     className="h-56 sm:h-60 w-full object-cover object-top transition duration-300 group-hover:scale-[1.03]"
                   />
 
-                  {/* top tags */}
                   <div className="absolute top-3 left-3 flex flex-wrap gap-2">
                     {c.tags.slice(0, 3).map((t) => (
                       <span
@@ -836,16 +1025,13 @@ export default function Page() {
                     ))}
                   </div>
 
-                  {/* Hover overlay */}
                   <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/35 to-transparent opacity-0 group-hover:opacity-100 transition duration-300" />
 
                   <div className="absolute inset-x-0 bottom-0 p-4 translate-y-3 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition duration-300">
                     <div className="rounded-3xl bg-slate-950/55 ring-1 ring-white/10 backdrop-blur px-4 py-3">
                       <div className="text-white font-semibold flex items-center justify-between gap-3">
                         <span>Top projects</span>
-                        <span className="text-xs text-white/70">
-                          {c.highlight}
-                        </span>
+                        <span className="text-xs text-white/70">{c.highlight}</span>
                       </div>
 
                       <div className="mt-2 flex flex-wrap gap-2">
@@ -868,9 +1054,7 @@ export default function Page() {
                         </div>
 
                         <div className="flex items-center gap-2">
-                          <span className="text-xs text-white/70 hidden sm:inline">
-                            Preview
-                          </span>
+                          <span className="text-xs text-white/70 hidden sm:inline">Preview</span>
                           <ChevronRight className="h-4 w-4 text-white/80" />
                         </div>
                       </div>
@@ -878,34 +1062,23 @@ export default function Page() {
                   </div>
                 </div>
 
-                {/* Body */}
                 <div className="p-5">
-                  <div className="text-white font-semibold text-lg">
-                    {c.title}
-                  </div>
-                  <div className="mt-2 text-white/70 text-sm leading-relaxed">
-                    {c.desc}
-                  </div>
+                  <div className="text-white font-semibold text-lg">{c.title}</div>
+                  <div className="mt-2 text-white/70 text-sm leading-relaxed">{c.desc}</div>
 
                   <div className="mt-4 grid grid-cols-2 gap-2">
                     <div className="rounded-2xl bg-white/5 ring-1 ring-white/10 p-3">
                       <div className="text-xs text-white/60">Level</div>
-                      <div className="text-sm text-white/85 font-semibold">
-                        {c.level}
-                      </div>
+                      <div className="text-sm text-white/85 font-semibold">{c.level}</div>
                     </div>
                     <div className="rounded-2xl bg-white/5 ring-1 ring-white/10 p-3">
                       <div className="text-xs text-white/60">Typical length</div>
-                      <div className="text-sm text-white/85 font-semibold">
-                        {c.duration}
-                      </div>
+                      <div className="text-sm text-white/85 font-semibold">{c.duration}</div>
                     </div>
                   </div>
 
                   <div className="mt-4 flex items-center justify-between">
-                    <span className="text-xs text-white/50">
-                      Tap for details • Live • Interactive
-                    </span>
+                    <span className="text-xs text-white/50">Tap for details • Live • Interactive</span>
                     <span className="text-xs text-white/60 group-hover:text-white/80 transition">
                       View
                     </span>
@@ -927,11 +1100,26 @@ export default function Page() {
 
             <div className="mt-8 grid md:grid-cols-3 gap-5">
               {[
-                { n: 1, title: "Free Trial + Placement", body: "We assess level, set goals, and build a mini-project on day one." },
-                { n: 2, title: "Live Classes", body: "Guided lessons with lots of building. Beginner → intermediate pathways." },
-                { n: 3, title: "Projects + Feedback", body: "Kids finish with shareable projects and parents get progress notes." },
+                {
+                  n: 1,
+                  title: "Free Trial + Placement",
+                  body: "We assess level, set goals, and build a mini-project on day one.",
+                },
+                {
+                  n: 2,
+                  title: "Live Classes",
+                  body: "Guided lessons with lots of building. Beginner → intermediate pathways.",
+                },
+                {
+                  n: 3,
+                  title: "Projects + Feedback",
+                  body: "Kids finish with shareable projects and parents get progress notes.",
+                },
               ].map((s) => (
-                <div key={s.n} className="rounded-3xl bg-slate-950/40 ring-1 ring-white/10 p-5">
+                <div
+                  key={s.n}
+                  className="rounded-3xl bg-slate-950/40 ring-1 ring-white/10 p-5"
+                >
                   <div className="flex items-center gap-2 text-white font-semibold">
                     <span className="h-8 w-8 rounded-2xl bg-white/10 ring-1 ring-white/15 flex items-center justify-center">
                       {s.n}
@@ -971,66 +1159,31 @@ export default function Page() {
           </div>
         </section>
 
-        {/* Pricing */}
+        {/* Pricing (UPDATED: interactive cards + section reveal) */}
         <section id="pricing" className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-16">
-          <SectionTitle
-            eyebrow="Pricing"
-            title="Simple plans that grow with your kid"
-            desc="Clear options. Switch anytime. Cancel anytime."
-          />
+          <motion.div
+            initial={{ opacity: 0, y: 14 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, amount: 0.25 }}
+            transition={{ duration: 0.45 }}
+          >
+            <SectionTitle
+              eyebrow="Pricing"
+              title="Simple plans that grow with your kid"
+              desc="Clear options. Switch anytime. Cancel anytime."
+            />
 
-          <div className="mt-8 grid lg:grid-cols-3 gap-5">
-            {pricing.map((p) => (
-              <div
-                key={p.name}
-                className={classNames(
-                  "rounded-[2rem] p-6 ring-1",
-                  (p as any).highlight
-                    ? "bg-white/10 ring-white/25 shadow-[0_20px_80px_rgba(0,0,0,0.35)]"
-                    : "bg-white/5 ring-white/10"
-                )}
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <div className="text-white font-semibold text-lg">{p.name}</div>
-                    <div className="mt-2 text-sm text-white/70">{p.desc}</div>
-                  </div>
-                  {(p as any).highlight ? (
-                    <span className="rounded-full bg-white/15 px-3 py-1 text-xs text-white/80 ring-1 ring-white/20">
-                      Most popular
-                    </span>
-                  ) : null}
-                </div>
-
-                <div className="mt-6 flex items-end gap-2">
-                  <div className="text-4xl font-semibold tracking-tight">{p.price}</div>
-                  <div className="text-white/60 pb-1">{p.cadence}</div>
-                </div>
-
-                <div className="mt-5 grid gap-2">
-                  {p.features.map((f) => (
-                    <div key={f} className="flex items-center gap-2 text-sm text-white/75">
-                      <Check className="h-4 w-4" />
-                      {f}
-                    </div>
-                  ))}
-                </div>
-
-                <div className="mt-6">
-                  <Button
-                    variant={(p as any).highlight ? "primary" : "ghost"}
-                    className="w-full"
-                    onClick={() => setTrialOpen(true)}
-                  >
-                    {p.cta}
-                  </Button>
-                  <div className="mt-3 text-xs text-white/50">
-                    Cancel anytime • Switch plans anytime
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+            <div className="mt-8 grid lg:grid-cols-3 gap-5">
+              {pricing.map((p) => (
+                <PricingCard
+                  key={p.name}
+                  plan={p}
+                  highlighted={(p as any).highlight}
+                  onCta={() => setTrialOpen(true)}
+                />
+              ))}
+            </div>
+          </motion.div>
         </section>
 
         {/* FAQ */}
@@ -1042,7 +1195,10 @@ export default function Page() {
           />
           <div className="mt-8 grid md:grid-cols-2 gap-5">
             {FAQ.map((f) => (
-              <details key={f.q} className="rounded-[2rem] bg-white/5 ring-1 ring-white/10 p-6 open:bg-white/7">
+              <details
+                key={f.q}
+                className="rounded-[2rem] bg-white/5 ring-1 ring-white/10 p-6 open:bg-white/7"
+              >
                 <summary className="cursor-pointer text-white font-semibold">{f.q}</summary>
                 <div className="mt-3 text-white/70 leading-relaxed">{f.a}</div>
               </details>
@@ -1100,7 +1256,6 @@ export default function Page() {
                   </div>
                 </div>
               </div>
-
             </div>
           </div>
         </section>
@@ -1112,16 +1267,10 @@ export default function Page() {
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
             <div>
               <div className="flex items-center gap-3">
-                <img
-                  src="/images/favicon.png"
-                  alt="favicon"
-                  className="h-12 w-12 object-contain"
-                />
+                <img src="/images/favicon.png" alt="favicon" className="h-12 w-12 object-contain" />
                 <div className="text-white font-semibold">{BRAND.name}</div>
               </div>
-              <div className="mt-2 text-sm text-white/60 max-w-xl">
-                {BRAND.tagline}
-              </div>
+              <div className="mt-2 text-sm text-white/60 max-w-xl">{BRAND.tagline}</div>
             </div>
 
             <div className="flex flex-wrap gap-3">
@@ -1147,7 +1296,13 @@ export default function Page() {
           </div>
 
           <Field label="Parent name" placeholder="Your name" value={leadName} onChange={setLeadName} />
-          <Field label="Email" type="email" placeholder="you@example.com" value={leadEmail} onChange={setLeadEmail} />
+          <Field
+            label="Email"
+            type="email"
+            placeholder="you@example.com"
+            value={leadEmail}
+            onChange={setLeadEmail}
+          />
 
           <div className="grid grid-cols-2 gap-3">
             <Field label="Child age" placeholder="e.g., 9" value={leadChildAge} onChange={setLeadChildAge} />
@@ -1184,8 +1339,20 @@ export default function Page() {
             UI-only login modal. Connect to NextAuth/Clerk/Firebase/Supabase later.
           </div>
 
-          <Field label="Email" type="email" placeholder="you@example.com" value={userEmail} onChange={setUserEmail} />
-          <Field label="Password" type="password" placeholder="••••••••" value={userPass} onChange={setUserPass} />
+          <Field
+            label="Email"
+            type="email"
+            placeholder="you@example.com"
+            value={userEmail}
+            onChange={setUserEmail}
+          />
+          <Field
+            label="Password"
+            type="password"
+            placeholder="••••••••"
+            value={userPass}
+            onChange={setUserPass}
+          />
 
           <Button variant="primary" onClick={submitLogin}>
             <Lock className="h-4 w-4" />
@@ -1212,22 +1379,16 @@ export default function Page() {
               className="h-44 w-full rounded-2xl object-cover object-top ring-1 ring-white/10"
             />
 
-            <div className="text-white/80 text-sm leading-relaxed">
-              {selectedCourse.desc}
-            </div>
+            <div className="text-white/80 text-sm leading-relaxed">{selectedCourse.desc}</div>
 
             <div className="grid grid-cols-2 gap-3">
               <div className="rounded-2xl bg-white/5 ring-1 ring-white/10 p-3">
                 <div className="text-xs text-white/60">Level</div>
-                <div className="text-sm font-semibold text-white/90">
-                  {selectedCourse.level}
-                </div>
+                <div className="text-sm font-semibold text-white/90">{selectedCourse.level}</div>
               </div>
               <div className="rounded-2xl bg-white/5 ring-1 ring-white/10 p-3">
                 <div className="text-xs text-white/60">Typical length</div>
-                <div className="text-sm font-semibold text-white/90">
-                  {selectedCourse.duration}
-                </div>
+                <div className="text-sm font-semibold text-white/90">{selectedCourse.duration}</div>
               </div>
             </div>
 
@@ -1293,11 +1454,7 @@ export default function Page() {
                 <Play className="h-4 w-4" />
                 Book a Free Trial
               </Button>
-              <Button
-                variant="ghost"
-                className="flex-1"
-                onClick={() => setCourseOpen(false)}
-              >
+              <Button variant="ghost" className="flex-1" onClick={() => setCourseOpen(false)}>
                 Close
               </Button>
             </div>
