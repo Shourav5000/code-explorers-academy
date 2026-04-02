@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Check,
@@ -676,6 +677,11 @@ export default function Page() {
   const [userEmail, setUserEmail] = useState("");
   const [userPass, setUserPass] = useState("");
 
+  // Form submission state
+  const [leadSubmitting, setLeadSubmitting] = useState(false);
+  const [leadSuccess, setLeadSuccess] = useState(false);
+  const [leadError, setLeadError] = useState("");
+
   const pricing = useMemo(
     () => [
       {
@@ -722,16 +728,38 @@ export default function Page() {
     []
   );
 
-  const submitLead = () => {
-    alert(
-      `Thanks, ${leadName || "friend"}! We'll reach out to ${
-        leadEmail || "your email"
-      } to schedule the free trial.`
-    );
-    setTrialOpen(false);
-    setLeadName("");
-    setLeadEmail("");
-    setLeadChildAge("");
+  const submitLead = async () => {
+    if (!leadName.trim() || !leadEmail.trim()) {
+      setLeadError("Please fill in your name and email.");
+      return;
+    }
+    setLeadError("");
+    setLeadSubmitting(true);
+    try {
+      const res = await fetch("https://formspree.io/f/xwvwqgav", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({
+          name: leadName,
+          email: leadEmail,
+          childAge: leadChildAge,
+          interest: leadInterest,
+          _subject: `Free Trial Request – ${leadName}`,
+        }),
+      });
+      if (res.ok) {
+        setLeadSuccess(true);
+        setLeadName("");
+        setLeadEmail("");
+        setLeadChildAge("");
+      } else {
+        setLeadError("Something went wrong. Please email us directly at " + BRAND.email);
+      }
+    } catch {
+      setLeadError("Network error. Please email us at " + BRAND.email);
+    } finally {
+      setLeadSubmitting(false);
+    }
   };
 
   const submitLogin = () => {
@@ -958,9 +986,12 @@ export default function Page() {
                     transition={{ duration: 0.35 }}
                     className="relative"
                   >
-                    <img
+                    <Image
                       src={active.image}
                       alt={active.headline}
+                      width={800}
+                      height={420}
+                      priority
                       className="w-full h-[340px] sm:h-[420px] object-cover"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-slate-950/10 to-transparent" />
@@ -1289,47 +1320,75 @@ export default function Page() {
       </footer>
 
       {/* Modals */}
-      <Modal open={trialOpen} onClose={() => setTrialOpen(false)} title="Book a Free Trial">
+      <Modal open={trialOpen} onClose={() => { setTrialOpen(false); setLeadSuccess(false); setLeadError(""); }} title="Book a Free Trial">
         <div className="grid gap-4">
-          <div className="rounded-2xl bg-white/5 ring-1 ring-white/10 p-4 text-sm text-white/70">
-            Quick note: this is a front-end placeholder. Hook it to your backend / email service later.
-          </div>
-
-          <Field label="Parent name" placeholder="Your name" value={leadName} onChange={setLeadName} />
-          <Field
-            label="Email"
-            type="email"
-            placeholder="you@example.com"
-            value={leadEmail}
-            onChange={setLeadEmail}
-          />
-
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Child age" placeholder="e.g., 9" value={leadChildAge} onChange={setLeadChildAge} />
-            <label className="block">
-              <div className="text-xs text-white/70 mb-1">Interested in</div>
-              <select
-                value={leadInterest}
-                onChange={(e) => setLeadInterest(e.target.value)}
-                className="w-full rounded-2xl bg-white/5 ring-1 ring-white/10 px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-white/30"
+          {leadSuccess ? (
+            <div className="rounded-2xl bg-green-500/10 ring-1 ring-green-400/30 p-5 text-center">
+              <div className="text-2xl mb-2">🎉</div>
+              <div className="text-white font-semibold">You're on the list!</div>
+              <div className="mt-1 text-sm text-white/70">
+                We'll email you at <span className="text-white/90">{leadEmail || "your address"}</span> to schedule the free trial. Talk soon!
+              </div>
+              <button
+                className="mt-4 text-xs text-white/50 hover:text-white/70 underline"
+                onClick={() => { setTrialOpen(false); setLeadSuccess(false); }}
               >
-                {COURSES.map((c) => (
-                  <option key={c.title} value={c.title} className="bg-slate-950">
-                    {c.title}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
+                Close
+              </button>
+            </div>
+          ) : (
+            <>
+              <Field label="Parent name" placeholder="Your name" value={leadName} onChange={setLeadName} />
+              <Field
+                label="Email"
+                type="email"
+                placeholder="you@example.com"
+                value={leadEmail}
+                onChange={setLeadEmail}
+              />
 
-          <Button onClick={submitLead}>
-            <Play className="h-4 w-4" />
-            Request Trial
-          </Button>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Child age" placeholder="e.g., 9" value={leadChildAge} onChange={setLeadChildAge} />
+                <label className="block">
+                  <div className="text-xs text-white/70 mb-1">Interested in</div>
+                  <select
+                    value={leadInterest}
+                    onChange={(e) => setLeadInterest(e.target.value)}
+                    className="w-full rounded-2xl bg-white/5 ring-1 ring-white/10 px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-white/30"
+                  >
+                    {COURSES.map((c) => (
+                      <option key={c.title} value={c.title} className="bg-slate-950">
+                        {c.title}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
 
-          <div className="text-xs text-white/50">
-            Replace the alert() with a real submit (API route, Formspree, etc.).
-          </div>
+              {leadError && (
+                <div className="rounded-2xl bg-red-500/10 ring-1 ring-red-400/30 px-4 py-3 text-sm text-red-300">
+                  {leadError}
+                </div>
+              )}
+
+              <Button onClick={submitLead} disabled={leadSubmitting}>
+                {leadSubmitting ? (
+                  <span className="inline-flex items-center gap-2">
+                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                    </svg>
+                    Sending…
+                  </span>
+                ) : (
+                  <>
+                    <Play className="h-4 w-4" />
+                    Request Trial
+                  </>
+                )}
+              </Button>
+            </>
+          )}
         </div>
       </Modal>
 
